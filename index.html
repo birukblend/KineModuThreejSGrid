@@ -283,6 +283,8 @@
      
 
 
+        let furnitureModels = {}; // To store the loaded models
+
         function loadFurnitureModels() {
             const fbxLoader = new THREE.FBXLoader();
             const furnitureFiles = ["Accent Chair.fbx", "Coffee table.fbx", "Modular Shelf.fbx"]; // Add your .fbx file names here
@@ -295,6 +297,17 @@
                 });
             });
         }
+
+        // Function to create a button for each furniture model
+        function createFurnitureButton(fileName) {
+            const button = document.createElement('button');
+            button.innerHTML = fileName.split('.')[0]; // Display the model name (without the .fbx extension)
+            button.onclick = function () {
+                selectedShape = fileName;  // Set the selectedShape to the filename of the chosen model
+            };
+            document.body.appendChild(button);  // Add the button to the page (adjust where you want it in your UI)
+        }
+
 
         // Function to create a button for each furniture model
         function createFurnitureButton(fileName) {
