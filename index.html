@@ -342,7 +342,7 @@
                 const intersect = intersects[0];
 
                 if (draggableObjects.includes(intersect.object)) {
-                    selectObject(intersect.object);
+                    selectObject(intersect.object);  // If clicking on an existing object, select it
                 } else {
                     const snapPosition = new THREE.Vector3(
                         Math.round(intersect.point.x),
@@ -350,26 +350,33 @@
                         Math.round(intersect.point.z)
                     );
 
-                    let newObject;
-                    if (selectedShape === 'cube') {
-                        newObject = createDraggableObject(new THREE.BoxGeometry(1, 1, 1), 0xff0000);
-                    } else if (selectedShape === 'sphere') {
-                        newObject = createDraggableObject(new THREE.SphereGeometry(0.5, 32, 32), 0x00ff00);
-                    } else if (selectedShape === 'cylinder') {
-                        newObject = createDraggableObject(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), 0x0000ff);
-                    }
+                    // Check if a model has been selected
+                    if (furnitureModels[selectedShape]) {
+                        const newObject = furnitureModels[selectedShape].clone();  // Clone the selected model
 
-                    newObject.position.copy(snapPosition);
-                    draggableObjects.push(newObject);
-                    gridGroup.add(newObject);
+                        // Optional: scale the object if necessary (adjust according to your model scale)
+                        newObject.scale.set(0.1, 0.1, 0.1);  // Adjust the scale as needed
 
-                    selectObject(newObject);
-                    if (editMode) {
-                        createDraggableControls(); // Enable dragging if edit mode is on
+                        newObject.position.copy(snapPosition);  // Position the object
+
+                        // Add the new object to the draggable objects array and the scene
+                        draggableObjects.push(newObject);
+                        gridGroup.add(newObject);
+
+                        // Select the newly created object
+                        selectObject(newObject);
+
+                        // If in edit mode, activate draggable controls
+                        if (editMode) {
+                            createDraggableControls();  // Enable dragging if edit mode is on
+                        }
+                    } else {
+                        console.warn("No model selected or model not loaded yet.");
                     }
                 }
             }
         }
+
 
         function createDraggableObject(geometry, color) {
             const material = new THREE.MeshStandardMaterial({ color });
