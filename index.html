@@ -283,17 +283,31 @@
         let furnitureModels = {};  // To store loaded furniture models
 
         // Function to load furniture models
+        let furnitureModels = {}; // To store the loaded models
+
         function loadFurnitureModels() {
             const fbxLoader = new THREE.FBXLoader();
             const furnitureFiles = ["Accent Chair.fbx", "Coffee table.fbx", "Modular Shelf.fbx"]; // Add your .fbx file names here
 
             furnitureFiles.forEach(file => {
                 fbxLoader.load(`assets/${file}`, function (object) {
+                    // Store the loaded model in the furnitureModels object
                     furnitureModels[file] = object;
                     createFurnitureButton(file);  // Create a button for each model
                 });
             });
         }
+
+        // Function to create a button for each furniture model
+        function createFurnitureButton(fileName) {
+            const button = document.createElement('button');
+            button.innerHTML = fileName.split('.')[0]; // Display the model name (without the .fbx extension)
+            button.onclick = function () {
+                selectedShape = fileName;  // Set the selectedShape to the filename of the chosen model
+            };
+            document.body.appendChild(button);  // Add the button to the page (adjust where you want it in your UI)
+        }
+
 
         // Function to create a button for each furniture model
         function createFurnitureButton(fileName) {
@@ -330,7 +344,7 @@
                 const intersect = intersects[0];
 
                 if (draggableObjects.includes(intersect.object)) {
-                    selectObject(intersect.object);
+                    selectObject(intersect.object);  // If clicking on an existing object, select it
                 } else {
                     const snapPosition = new THREE.Vector3(
                         Math.round(intersect.point.x),
@@ -338,26 +352,33 @@
                         Math.round(intersect.point.z)
                     );
 
-                    let newObject;
-                    if (selectedShape === 'cube') {
-                        newObject = createDraggableObject(new THREE.BoxGeometry(1, 1, 1), 0xff0000);
-                    } else if (selectedShape === 'sphere') {
-                        newObject = createDraggableObject(new THREE.SphereGeometry(0.5, 32, 32), 0x00ff00);
-                    } else if (selectedShape === 'cylinder') {
-                        newObject = createDraggableObject(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), 0x0000ff);
-                    }
+                    // Check if a model has been selected
+                    if (furnitureModels[selectedShape]) {
+                        const newObject = furnitureModels[selectedShape].clone();  // Clone the selected model
 
-                    newObject.position.copy(snapPosition);
-                    draggableObjects.push(newObject);
-                    gridGroup.add(newObject);
+                        // Optional: scale the object if necessary (adjust according to your model scale)
+                        newObject.scale.set(0.1, 0.1, 0.1);  // Adjust the scale as needed
 
-                    selectObject(newObject);
-                    if (editMode) {
-                        createDraggableControls(); // Enable dragging if edit mode is on
+                        newObject.position.copy(snapPosition);  // Position the object
+
+                        // Add the new object to the draggable objects array and the scene
+                        draggableObjects.push(newObject);
+                        gridGroup.add(newObject);
+
+                        // Select the newly created object
+                        selectObject(newObject);
+
+                        // If in edit mode, activate draggable controls
+                        if (editMode) {
+                            createDraggableControls();  // Enable dragging if edit mode is on
+                        }
+                    } else {
+                        console.warn("No model selected or model not loaded yet.");
                     }
                 }
             }
         }
+
 
         function createDraggableObject(geometry, color) {
             const material = new THREE.MeshStandardMaterial({ color });
