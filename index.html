@@ -288,7 +288,7 @@
             const furnitureFiles = ["Accent Chair.fbx", "Coffee table.fbx", "Modular Shelf.fbx"]; // Add your .fbx file names here
 
             furnitureFiles.forEach(file => {
-                fbxLoader.load(`Furniture/${file}`, function (object) {
+                fbxLoader.load(`assets/${file}`, function (object) {
                     furnitureModels[file] = object;
                     createFurnitureButton(file);  // Create a button for each model
                 });
