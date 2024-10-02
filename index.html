@@ -329,55 +329,55 @@
         loadFurnitureModels();
 
 
-       function onMouseClick(event) {
-    if (editMode) {
-        return;  // Do nothing when in edit mode
-    }
+        function onMouseClick(event) {
+            if (editMode) {
+                return;  // Do nothing when in edit mode
+            }
 
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(GroundGrid.concat(draggableObjects));
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(GroundGrid.concat(draggableObjects));
 
-    if (intersects.length > 0) {
-        const intersect = intersects[0];
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
 
-        if (draggableObjects.includes(intersect.object)) {
-            selectObject(intersect.object);  // If clicking on an existing object, select it
-        } else {
-            const snapPosition = new THREE.Vector3(
-                Math.round(intersect.point.x),
-                0.5, // Keep the object at a height of 0.5 above the grid
-                Math.round(intersect.point.z)
-            );
+                if (draggableObjects.includes(intersect.object)) {
+                    selectObject(intersect.object);  // If clicking on an existing object, select it
+                } else {
+                    const snapPosition = new THREE.Vector3(
+                        Math.round(intersect.point.x),
+                        0.5, // Keep the object at a height of 0.5 above the grid
+                        Math.round(intersect.point.z)
+                    );
 
-            // Check if a model has been selected
-            if (furnitureModels[selectedShape]) {
-                const newObject = furnitureModels[selectedShape].clone();  // Clone the selected model
+                    // Check if a model has been selected
+                    if (furnitureModels[selectedShape]) {
+                        const newObject = furnitureModels[selectedShape].clone();  // Clone the selected model
 
-                // Optional: scale the object if necessary (adjust according to your model scale)
-                newObject.scale.set(0.1, 0.1, 0.1);  // Adjust the scale as needed
+                        // Optional: scale the object if necessary (adjust according to your model scale)
+                        newObject.scale.set(0.1, 0.1, 0.1);  // Adjust the scale as needed
 
-                newObject.position.copy(snapPosition);  // Position the object
+                        newObject.position.copy(snapPosition);  // Position the object
 
-                // Add the new object to the draggable objects array and the scene
-                draggableObjects.push(newObject);
-                gridGroup.add(newObject);
+                        // Add the new object to the draggable objects array and the scene
+                        draggableObjects.push(newObject);
+                        gridGroup.add(newObject);
 
-                // Select the newly created object
-                selectObject(newObject);
+                        // Select the newly created object
+                        selectObject(newObject);
 
-                // If in edit mode, activate draggable controls
-                if (editMode) {
-                    createDraggableControls();  // Enable dragging if edit mode is on
+                        // If in edit mode, activate draggable controls
+                        if (editMode) {
+                            createDraggableControls();  // Enable dragging if edit mode is on
+                        }
+                    } else {
+                        console.warn("No model selected or model not loaded yet.");
+                    }
                 }
-            } else {
-                console.warn("No model selected or model not loaded yet.");
             }
         }
-    }
-}
 
 
         function createDraggableObject(geometry, color) {
