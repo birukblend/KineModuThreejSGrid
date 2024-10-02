@@ -1,0 +1,533 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js L-shaped Walls with GroundGrid</title>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            width: 150px;
+        }
+
+        #objectSelectionPanel {
+            position: absolute;
+            top: 200px;
+            right: 10px;
+            z-index: 1;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            width: 150px;
+        }
+
+        .panel {
+            position: absolute;
+            right: 10px;
+            z-index: 1;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <label>
+            X-axis:
+            <input type="range" id="xRange" min="1" max="10" value="5" step="1">
+            <input type="number" id="xInput" min="1" value="5" step="1" style="width: 50px;">
+        </label><br>
+        <label>
+            Y-axis:
+            <input type="range" id="yRange" min="1" max="10" value="5" step="1">
+            <input type="number" id="yInput" min="1" value="5" step="1" style="width: 50px;">
+        </label><br>
+        <label>
+            Z-axis:
+            <input type="range" id="zRange" min="1" max="10" value="5" step="1">
+            <input type="number" id="zInput" min="1" value="5" step="1" style="width: 50px;">
+        </label><br>
+        <label>
+            Light Rotation:
+            <input type="range" id="lightRotation" min="0" max="360" value="230" step="1">
+        </label><br>
+        <hr>
+        <h3>Grid Shape</h3>
+        <button id="squareButton">Square</button>
+        <button id="lShapeButton">L-Shape</button>
+        <button id="uShapeButton">U-Shape</button>
+        <button id="hShapeButton">H-Shape</button>
+        <hr>
+        <h3>Camera Properties</h3>
+        <label>X: <input type="number" id="cameraX" value="0" step="0.1" readonly></label><br>
+        <label>Y: <input type="number" id="cameraY" value="0" step="0.1" readonly></label><br>
+        <label>Z: <input type="number" id="cameraZ" value="0" step="0.1" readonly></label><br>
+        <label>Rotation X: <input type="number" id="rotationX" value="0" step="1" readonly></label><br>
+        <label>Rotation Y: <input type="number" id="rotationY" value="0" step="1" readonly></label><br>
+        <label>Rotation Z: <input type="number" id="rotationZ" value="0" step="1" readonly></label><br>
+        <button id="copyButton">Copy Camera Properties</button>
+    </div>
+
+    <!-- New panel for object selection -->
+    <div id="objectSelectionPanel">
+        <h3>Select Object</h3>
+        <button id="cubeButton">Cube</button>
+        <button id="sphereButton">Sphere</button>
+        <button id="cylinderButton">Cylinder</button><br><br>
+        <button id="editModeButton">Edit Mode: Off</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+
+    <script src="assets/DragControls.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls, directionalLight, gridGroup, raycaster, mouse;
+        let draggableObjects = [], selectedShape = 'cube', selectedObject = null;
+        let dragControls = null;
+        let editMode = false;
+        let GroundGrid = [], WallRight = [], WallLeft = [];
+        const gridSize = { x: 5, y: 5, z: 5 };
+        let currentShape = 'square'; // Default shape is square
+
+        init();
+        createGrids();
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb); // Light blue sky color
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true; // Enable shadow mapping
+            document.body.appendChild(renderer.domElement);
+
+            // Orbit Controls for zoom, pan, and rotate
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.1;
+            controls.enablePan = true;
+            controls.enableZoom = true;
+            controls.minDistance = 1;
+            controls.maxDistance = 100;
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Soft ambient light
+            scene.add(ambientLight);
+
+            // Directional light
+            directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 20, 10);
+            const lightRotationValue = 230; // Angle in degrees
+            directionalLight.position.x = Math.cos(THREE.MathUtils.degToRad(lightRotationValue)) * 20;
+            directionalLight.position.z = Math.sin(THREE.MathUtils.degToRad(lightRotationValue)) * 20;
+            directionalLight.position.y = 20; // Keep the height constant
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // Ground plane to receive shadows
+            const planeGeometry = new THREE.PlaneGeometry(50, 50);
+            const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = - Math.PI / 2;
+            plane.position.y = -0.5;
+            plane.receiveShadow = true;
+            scene.add(plane);
+
+            // Group to hold all grids
+            gridGroup = new THREE.Group();
+            scene.add(gridGroup);
+
+            // Raycaster and mouse setup for detecting clicks
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            window.addEventListener('click', onMouseClick);
+
+            // Event listeners for the sliders and input fields
+            document.getElementById('xRange').addEventListener('input', updateXFromSlider);
+            document.getElementById('yRange').addEventListener('input', updateYFromSlider);
+            document.getElementById('zRange').addEventListener('input', updateZFromSlider);
+
+            document.getElementById('xInput').addEventListener('input', updateXFromInput);
+            document.getElementById('yInput').addEventListener('input', updateYFromInput);
+            document.getElementById('zInput').addEventListener('input', updateZFromInput);
+
+            document.getElementById('lightRotation').addEventListener('input', updateLight);
+
+            document.getElementById('copyButton').addEventListener('click', copyCameraProperties);
+
+            // Shape buttons event listeners
+            document.getElementById('squareButton').addEventListener('click', () => changeShape('square'));
+            document.getElementById('lShapeButton').addEventListener('click', () => changeShape('lShape'));
+            document.getElementById('uShapeButton').addEventListener('click', () => changeShape('uShape'));
+            document.getElementById('hShapeButton').addEventListener('click', () => changeShape('hShape'));
+
+            // Object selection event listeners
+            document.getElementById('cubeButton').addEventListener('click', () => selectedShape = 'cube');
+            document.getElementById('sphereButton').addEventListener('click', () => selectedShape = 'sphere');
+            document.getElementById('cylinderButton').addEventListener('click', () => selectedShape = 'cylinder');
+
+            // Edit Mode button event listener
+            document.getElementById('editModeButton').addEventListener('click', toggleEditMode);
+
+            // Initial camera framing
+            frameGrid();
+
+            animate();
+        }
+
+        function toggleEditMode() {
+            editMode = !editMode;  // Toggle edit mode
+            const button = document.getElementById('editModeButton');
+            if (editMode) {
+                button.innerText = "Edit Mode: On";
+                controls.enabled = false;  // Disable OrbitControls
+                if (selectedObject) {
+                    createDraggableControls(); // Enable dragging for selected object
+                }
+            } else {
+                button.innerText = "Edit Mode: Off";
+                controls.enabled = true;   // Enable OrbitControls
+                if (dragControls) {
+                    dragControls.deactivate();  // Disable drag controls
+                }
+            }
+        }
+
+        function createGrids() {
+            const savedPositions = draggableObjects.map(object => object.position.clone());
+
+            clearGrids(); // Clear existing grids
+
+            const xSize = gridSize.x;
+            const ySize = gridSize.y;
+            const zSize = gridSize.z;
+
+            if (currentShape === 'square') {
+                GroundGrid = createGrid(xSize, 1, zSize, new THREE.Vector3(0, 0, 0));
+            } else if (currentShape === 'lShape') {
+                const lThickness = Math.max(1, Math.floor(zSize * 0.48));
+                GroundGrid = createGrid(xSize, 1, lThickness, new THREE.Vector3(0, 0, zSize - lThickness)).concat(
+                    createGrid(Math.max(1, Math.floor(xSize * 0.41)), 1, zSize, new THREE.Vector3(0, 0, 0))
+                );
+            } else if (currentShape === 'uShape') {
+                const uThickness = Math.max(1, Math.floor(zSize * 0.48));
+                GroundGrid = createGrid(xSize, 1, uThickness, new THREE.Vector3(0, 0, zSize - uThickness)).concat(
+                    createGrid(uThickness, 1, zSize, new THREE.Vector3(0, 0, 0)),
+                    createGrid(uThickness, 1, zSize, new THREE.Vector3(xSize - uThickness, 0, 0))
+                );
+            } else if (currentShape === 'hShape') {
+                const hThickness = Math.max(1, Math.floor(zSize * 0.25));
+                GroundGrid = createGrid(xSize, 1, hThickness, new THREE.Vector3(0, 0, zSize - hThickness)).concat(
+                    createGrid(hThickness, 1, zSize, new THREE.Vector3(0, 0, 0)),
+                    createGrid(hThickness, 1, zSize, new THREE.Vector3(xSize - hThickness, 0, 0)),
+                    createGrid(xSize, 1, hThickness, new THREE.Vector3(0, 0, Math.floor(zSize / 2)))
+                );
+            }
+
+            WallRight = createGrid(1, ySize, zSize, new THREE.Vector3(xSize, 0, 0));
+            WallLeft = createGrid(xSize, ySize, 1, new THREE.Vector3(0, 0, zSize));
+
+            adjustDraggableObjectsToGrid(savedPositions);
+
+            frameGrid(); // Reframe camera after creating grids
+        }
+
+        function createGrid(xSize, ySize, zSize, position) {
+            const cubes = [];
+            const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, wireframe: false });
+
+            for (let x = 0; x < xSize; x++) {
+                for (let y = 0; y < ySize; y++) {
+                    for (let z = 0; z < zSize; z++) {
+                        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                        cube.position.set(x + position.x, y + position.y, z + position.z);
+                        cube.castShadow = true;
+                        gridGroup.add(cube); // Add cube to the gridGroup
+                        cubes.push(cube);
+                    }
+                }
+            }
+            return cubes;
+        }
+
+        function clearGrids() {
+            while (gridGroup.children.length) {
+                gridGroup.remove(gridGroup.children[0]);
+            }
+        }
+        let furnitureModels = {};  // To store loaded furniture models
+
+        // Function to load furniture models
+        function loadFurnitureModels() {
+            const fbxLoader = new THREE.FBXLoader();
+            const furnitureFiles = ["Accent Chair.fbx", "Coffee table.fbx", "Modular Shelf.fbx"]; // Add your .fbx file names here
+
+            furnitureFiles.forEach(file => {
+                fbxLoader.load(`Furniture/${file}`, function (object) {
+                    furnitureModels[file] = object;
+                    createFurnitureButton(file);  // Create a button for each model
+                });
+            });
+        }
+
+        // Function to create a button for each furniture model
+        function createFurnitureButton(fileName) {
+            const button = document.createElement('button');
+            button.textContent = fileName.split('.')[0];  // Use the file name without the extension
+            button.onclick = () => spawnFurniture(furnitureModels[fileName]);
+            document.getElementById('objectSelectionPanel').appendChild(button);  // Add the button to the object selection panel
+        }
+
+        // Function to spawn the selected furniture model into the scene
+        function spawnFurniture(model) {
+            const newObject = model.clone();  // Clone the model to spawn a new instance
+            newObject.position.set(Math.random() * 5, 0, Math.random() * 5);  // Set a random position
+            scene.add(newObject);  // Add the model to the scene
+            draggableObjects.push(newObject);  // Add the model to the draggable objects array (if applicable)
+        }
+
+        // Call this function in your init or after the scene is ready to load furniture models
+        loadFurnitureModels();
+
+
+        function onMouseClick(event) {
+            if (editMode) {
+                return;  // Do nothing when in edit mode
+            }
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(GroundGrid.concat(draggableObjects));
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+
+                if (draggableObjects.includes(intersect.object)) {
+                    selectObject(intersect.object);
+                } else {
+                    const snapPosition = new THREE.Vector3(
+                        Math.round(intersect.point.x),
+                        0.5, // Keep the object at a height of 0.5 above the grid
+                        Math.round(intersect.point.z)
+                    );
+
+                    let newObject;
+                    if (selectedShape === 'cube') {
+                        newObject = createDraggableObject(new THREE.BoxGeometry(1, 1, 1), 0xff0000);
+                    } else if (selectedShape === 'sphere') {
+                        newObject = createDraggableObject(new THREE.SphereGeometry(0.5, 32, 32), 0x00ff00);
+                    } else if (selectedShape === 'cylinder') {
+                        newObject = createDraggableObject(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), 0x0000ff);
+                    }
+
+                    newObject.position.copy(snapPosition);
+                    draggableObjects.push(newObject);
+                    gridGroup.add(newObject);
+
+                    selectObject(newObject);
+                    if (editMode) {
+                        createDraggableControls(); // Enable dragging if edit mode is on
+                    }
+                }
+            }
+        }
+
+        function createDraggableObject(geometry, color) {
+            const material = new THREE.MeshStandardMaterial({ color });
+            const object = new THREE.Mesh(geometry, material);
+            object.castShadow = true;
+            object.receiveShadow = true;
+            return object;
+        }
+
+        function createDraggableControls() {
+            // Create drag controls only for the selected object
+            if (selectedObject) {
+                dragControls = new THREE.DragControls([selectedObject], camera, renderer.domElement);
+
+                dragControls.addEventListener('dragstart', function () {
+                    controls.enabled = false; // Disable orbit controls when dragging
+                });
+
+                dragControls.addEventListener('dragend', function () {
+                    // controls.enabled = true; // Re-enable orbit controls when dragging ends
+                });
+
+                dragControls.addEventListener('drag', function (event) {
+                    const object = event.object;
+
+                    // Restrict the object to the grid bounds
+                    const minX = 0, minZ = 0;
+                    const maxX = gridSize.x - 1;
+                    const maxZ = gridSize.z - 1;
+
+                    // Snap object to the nearest grid position and ensure it stays within bounds
+                    object.position.x = Math.max(minX, Math.min(maxX, Math.round(object.position.x)));
+                    object.position.z = Math.max(minZ, Math.min(maxZ, Math.round(object.position.z)));
+                    object.position.y = 0.5; // Keep the object at height of 0.5 above the ground
+                });
+            }
+        }
+
+        function adjustDraggableObjectsToGrid(savedPositions) {
+            draggableObjects.forEach((object, index) => {
+                const savedPosition = savedPositions[index];
+
+                object.position.x = Math.round(savedPosition.x);
+                object.position.z = Math.round(savedPosition.z);
+                object.position.y = 0.5; // Maintain constant height
+            });
+        }
+
+        function selectObject(object) {
+            if (selectedObject) {
+                selectedObject.material.color.setHex(0xffffff); // Reset previous object color
+            }
+            selectedObject = object;
+            selectedObject.material.color.setHex(0x00ff00); // Change selected object color to green
+
+            if (editMode) {
+                createDraggableControls();  // Enable dragging for the selected object only in edit mode
+            }
+        }
+
+        function updateXFromSlider() {
+            const xValue = parseInt(document.getElementById('xRange').value);
+            document.getElementById('xInput').value = xValue;
+            gridSize.x = xValue;
+            createGrids();
+        }
+
+        function updateYFromSlider() {
+            const yValue = parseInt(document.getElementById('yRange').value);
+            document.getElementById('yInput').value = yValue;
+            gridSize.y = yValue;
+            createGrids();
+        }
+
+        function updateZFromSlider() {
+            const zValue = parseInt(document.getElementById('zRange').value);
+            document.getElementById('zInput').value = zValue;
+            gridSize.z = zValue;
+            createGrids();
+        }
+
+        function updateXFromInput() {
+            const xValue = parseInt(document.getElementById('xInput').value);
+            document.getElementById('xRange').value = xValue;
+            document.getElementById('xRange').max = xValue;
+            gridSize.x = xValue;
+            createGrids();
+        }
+
+        function updateYFromInput() {
+            const yValue = parseInt(document.getElementById('yInput').value);
+            document.getElementById('yRange').value = yValue;
+            document.getElementById('yRange').max = yValue;
+            gridSize.y = yValue;
+            createGrids();
+        }
+
+        function updateZFromInput() {
+            const zValue = parseInt(document.getElementById('zInput').value);
+            document.getElementById('zRange').value = zValue;
+            document.getElementById('zRange').max = zValue;
+            gridSize.z = zValue;
+            createGrids();
+        }
+
+        function updateLight() {
+            const lightRotationValue = parseFloat(document.getElementById('lightRotation').value);
+            directionalLight.position.x = Math.cos(THREE.MathUtils.degToRad(lightRotationValue)) * 20;
+            directionalLight.position.z = Math.sin(THREE.MathUtils.degToRad(lightRotationValue)) * 20;
+            directionalLight.position.y = 20;
+            directionalLight.target.position.set(0, 0, 0);
+            directionalLight.target.update();
+        }
+
+        function copyCameraProperties() {
+            const cameraData = `Position: {
+                                x: ${camera.position.x.toFixed(4)},
+                                y: ${camera.position.y.toFixed(4)},
+                                z: ${camera.position.z.toFixed(4)}
+}
+Rotation: {
+                                x: ${THREE.MathUtils.radToDeg(camera.rotation.x).toFixed(2)},
+                                y: ${THREE.MathUtils.radToDeg(camera.rotation.y).toFixed(2)},
+                                z: ${THREE.MathUtils.radToDeg(camera.rotation.z).toFixed(2)}
+}`;
+            console.log(cameraData); // Output camera properties to console for easy copying
+        }
+
+        function frameGrid() {
+            const box = new THREE.Box3().setFromObject(gridGroup);
+            const boxSize = box.getSize(new THREE.Vector3());
+            const boxCenter = box.getCenter(new THREE.Vector3());
+
+            const maxDimension = Math.max(boxSize.x, boxSize.y, boxSize.z);
+            const cameraDistance = maxDimension * 1.7;
+
+            camera.position.set(boxCenter.x, boxCenter.y + cameraDistance * 0.7, boxCenter.z + cameraDistance);
+            camera.lookAt(boxCenter);
+
+            const rotationAngle = THREE.MathUtils.degToRad(-140);
+            const rotatedPosition = new THREE.Vector3();
+            rotatedPosition.subVectors(camera.position, boxCenter).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationAngle).add(boxCenter);
+            camera.position.copy(rotatedPosition);
+
+            controls.target.copy(boxCenter);
+            controls.update();
+        }
+
+        function changeShape(shape) {
+            currentShape = shape;
+            createGrids();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+
+            document.getElementById('cameraX').value = camera.position.x.toFixed(2);
+            document.getElementById('cameraY').value = camera.position.y.toFixed(2);
+            document.getElementById('cameraZ').value = camera.position.z.toFixed(2);
+            document.getElementById('rotationX').value = THREE.MathUtils.radToDeg(camera.rotation.x).toFixed(2);
+            document.getElementById('rotationY').value = THREE.MathUtils.radToDeg(camera.rotation.y).toFixed(2);
+            document.getElementById('rotationZ').value = THREE.MathUtils.radToDeg(camera.rotation.z).toFixed(2);
+        }
+
+        window.addEventListener('resize', function () {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
